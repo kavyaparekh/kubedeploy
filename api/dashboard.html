@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KubeDeploy Dashboard</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+      min-height: 100vh;
+    }
+    header {
+      background: #1e293b;
+      border-bottom: 1px solid #334155;
+      padding: 1rem 2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+    header h1 { font-size: 1.4rem; font-weight: 700; color: #f8fafc; }
+    header .badge {
+      background: #6366f1;
+      color: white;
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-weight: 600;
+    }
+    .subtitle { color: #94a3b8; font-size: 0.85rem; margin-left: auto; }
+
+    main { max-width: 1100px; margin: 2rem auto; padding: 0 1.5rem; }
+
+    .stats-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .stat-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .stat-card .label { color: #94a3b8; font-size: 0.8rem; margin-bottom: 0.4rem; }
+    .stat-card .value { font-size: 1.8rem; font-weight: 700; color: #f8fafc; }
+    .stat-card .value.green { color: #4ade80; }
+    .stat-card .value.yellow { color: #fbbf24; }
+    .stat-card .value.red { color: #f87171; }
+
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .section-title .dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #6366f1;
+    }
+
+    .builds-list { display: flex; flex-direction: column; gap: 0.75rem; }
+
+    .build-card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1rem 1.25rem;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
+      align-items: center;
+      gap: 1rem;
+      transition: border-color 0.2s;
+    }
+    .build-card:hover { border-color: #6366f1; }
+
+    .phase-badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .phase-RUNNING   { background: #14532d; color: #4ade80; }
+    .phase-BUILDING  { background: #1e3a5f; color: #60a5fa; }
+    .phase-PUSHING   { background: #1e3a5f; color: #818cf8; }
+    .phase-DEPLOYING { background: #3b2f00; color: #fbbf24; }
+    .phase-PENDING   { background: #292524; color: #a8a29e; }
+    .phase-FAILED    { background: #450a0a; color: #f87171; }
+
+    .build-info .name { font-weight: 600; color: #f8fafc; font-size: 0.95rem; }
+    .build-info .meta { color: #64748b; font-size: 0.8rem; margin-top: 2px; }
+    .build-info .image { color: #818cf8; font-size: 0.78rem; margin-top: 2px; font-family: monospace; }
+
+    .build-id { font-family: monospace; font-size: 0.8rem; color: #475569; }
+    .build-time { color: #64748b; font-size: 0.8rem; text-align: right; }
+
+    .pipeline-visual {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .pipeline-steps {
+      display: flex;
+      align-items: center;
+      gap: 0;
+    }
+    .step {
+      flex: 1;
+      text-align: center;
+      position: relative;
+    }
+    .step-icon {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.1rem;
+      margin: 0 auto 0.5rem;
+      position: relative;
+      z-index: 1;
+    }
+    .step.active .step-icon  { background: #6366f1; }
+    .step.done .step-icon    { background: #166534; }
+    .step.pending .step-icon { background: #1e293b; border: 2px solid #334155; }
+
+    .step-label { font-size: 0.72rem; color: #94a3b8; font-weight: 500; }
+    .step.active .step-label { color: #818cf8; }
+    .step.done .step-label   { color: #4ade80; }
+
+    .step-connector {
+      flex: 0 0 30px;
+      height: 2px;
+      background: #334155;
+      margin-bottom: 20px;
+    }
+    .step-connector.done { background: #166534; }
+    .step-connector.active { background: #6366f1; }
+
+    .logs-panel {
+      background: #020617;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 1rem;
+      font-family: monospace;
+      font-size: 0.8rem;
+      color: #4ade80;
+      max-height: 180px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+    .log-line { margin-bottom: 3px; }
+    .log-line::before { content: "▸ "; color: #6366f1; }
+
+    .refresh-btn {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+      margin-left: auto;
+      display: block;
+      margin-bottom: 1rem;
+    }
+    .refresh-btn:hover { background: #4338ca; }
+
+    .empty {
+      text-align: center;
+      color: #475569;
+      padding: 3rem;
+      font-size: 0.9rem;
+    }
+
+    .trigger-form {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 10px;
+      padding: 1.5rem;
+      margin-bottom: 2rem;
+    }
+    .trigger-form h3 { font-size: 0.95rem; color: #cbd5e1; margin-bottom: 1rem; }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 0.75rem; align-items: end; }
+    .form-group label { display: block; font-size: 0.75rem; color: #94a3b8; margin-bottom: 4px; }
+    .form-group input {
+      width: 100%;
+      background: #0f172a;
+      border: 1px solid #334155;
+      color: #f8fafc;
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+    }
+    .form-group input:focus { outline: none; border-color: #6366f1; }
+    .deploy-btn {
+      background: #6366f1;
+      color: white;
+      border: none;
+      padding: 0.5rem 1.25rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      font-weight: 600;
+      white-space: nowrap;
+      height: 36px;
+    }
+    .deploy-btn:hover { background: #4f46e5; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ KubeDeploy</h1>
+  <span class="badge">v1.0</span>
+  <span class="subtitle">Git-to-Kubernetes CI/CD Platform</span>
+</header>
+
+<main>
+  <!-- Stats -->
+  <div class="stats-row">
+    <div class="stat-card">
+      <div class="label">Total Builds</div>
+      <div class="value" id="stat-total">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Running</div>
+      <div class="value green" id="stat-running">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Building</div>
+      <div class="value yellow" id="stat-building">—</div>
+    </div>
+    <div class="stat-card">
+      <div class="label">Failed</div>
+      <div class="value red" id="stat-failed">—</div>
+    </div>
+  </div>
+
+  <!-- Pipeline Visual -->
+  <div class="pipeline-visual">
+    <div class="section-title" style="margin-bottom:1.25rem">
+      <span class="dot"></span>Pipeline — Single API Trigger
+    </div>
+    <div class="pipeline-steps">
+      <div class="step done">
+        <div class="step-icon">📦</div>
+        <div class="step-label">Git Push</div>
+      </div>
+      <div class="step-connector done"></div>
+      <div class="step done">
+        <div class="step-icon">🔗</div>
+        <div class="step-label">Webhook</div>
+      </div>
+      <div class="step-connector done"></div>
+      <div class="step active">
+        <div class="step-icon">🏗️</div>
+        <div class="step-label">Kaniko Build</div>
+      </div>
+      <div class="step-connector active"></div>
+      <div class="step pending">
+        <div class="step-icon">📤</div>
+        <div class="step-label">Push Image</div>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step pending">
+        <div class="step-icon">🚀</div>
+        <div class="step-label">Deployment</div>
+      </div>
+      <div class="step-connector"></div>
+      <div class="step pending">
+        <div class="step-icon">🌐</div>
+        <div class="step-label">Service Live</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manual Trigger Form -->
+  <div class="trigger-form">
+    <h3>🚀 Trigger a Deployment</h3>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Repository URL</label>
+        <input type="text" id="repo-url" placeholder="https://github.com/user/repo.git" />
+      </div>
+      <div class="form-group">
+        <label>Image Tag</label>
+        <input type="text" id="image-tag" placeholder="myapp:latest" />
+      </div>
+      <div class="form-group">
+        <label>App Name</label>
+        <input type="text" id="app-name" placeholder="myapp" />
+      </div>
+      <button class="deploy-btn" onclick="triggerDeploy()">Deploy ▶</button>
+    </div>
+    <div id="trigger-result" style="margin-top:0.75rem; font-size:0.82rem; color:#4ade80;"></div>
+  </div>
+
+  <!-- Builds List -->
+  <div class="section-title">
+    <span class="dot"></span>Recent Builds
+    <button class="refresh-btn" onclick="loadBuilds()" style="margin-left:auto;margin-bottom:0">↻ Refresh</button>
+  </div>
+  <div class="builds-list" id="builds-list">
+    <div class="empty">No builds yet. Push to a connected repo or trigger manually above.</div>
+  </div>
+
+  <!-- Logs Panel -->
+  <div id="logs-section" style="margin-top:1.5rem; display:none;">
+    <div class="section-title"><span class="dot"></span>Build Logs — <span id="logs-build-id"></span></div>
+    <div class="logs-panel" id="logs-panel"></div>
+  </div>
+</main>
+
+<script>
+  const API = '';  // same origin
+
+  async function loadBuilds() {
+    try {
+      const res = await fetch(`${API}/builds`);
+      const data = await res.json();
+      const builds = data.builds || [];
+
+      document.getElementById('stat-total').textContent = builds.length;
+      document.getElementById('stat-running').textContent = builds.filter(b => b.phase === 'RUNNING').length;
+      document.getElementById('stat-building').textContent = builds.filter(b => ['BUILDING','PUSHING','DEPLOYING'].includes(b.phase)).length;
+      document.getElementById('stat-failed').textContent = builds.filter(b => b.phase === 'FAILED').length;
+
+      const container = document.getElementById('builds-list');
+      if (builds.length === 0) {
+        container.innerHTML = '<div class="empty">No builds yet. Push to a connected repo or trigger manually above.</div>';
+        return;
+      }
+
+      container.innerHTML = builds.reverse().map(b => `
+        <div class="build-card" onclick="showLogs('${b.build_id}', ${JSON.stringify(b.logs)})">
+          <span class="phase-badge phase-${b.phase}">${b.phase}</span>
+          <div class="build-info">
+            <div class="name">${b.app_name}</div>
+            <div class="image">${b.image_tag}</div>
+            <div class="meta">commit: ${b.commit_sha}${b.service_ip ? ` · live at ${b.service_ip}:${b.service_port}` : ''}</div>
+          </div>
+          <div class="build-id">#${b.build_id}</div>
+        </div>
+      `).join('');
+    } catch(e) {
+      console.error(e);
+    }
+  }
+
+  function showLogs(buildId, logs) {
+    const section = document.getElementById('logs-section');
+    const panel = document.getElementById('logs-panel');
+    document.getElementById('logs-build-id').textContent = `#${buildId}`;
+    section.style.display = 'block';
+    panel.innerHTML = (logs || []).map(l => `<div class="log-line">${l}</div>`).join('');
+    panel.scrollTop = panel.scrollHeight;
+  }
+
+  async function triggerDeploy() {
+    const repoUrl = document.getElementById('repo-url').value.trim();
+    const imageTag = document.getElementById('image-tag').value.trim();
+    const appName = document.getElementById('app-name').value.trim();
+    const resultEl = document.getElementById('trigger-result');
+
+    if (!repoUrl || !imageTag || !appName) {
+      resultEl.style.color = '#f87171';
+      resultEl.textContent = 'Please fill in all fields.';
+      return;
+    }
+
+    try {
+      const res = await fetch(`${API}/deploy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ repo_url: repoUrl, image_tag: imageTag, app_name: appName })
+      });
+      const data = await res.json();
+      resultEl.style.color = '#4ade80';
+      resultEl.textContent = `✓ Build triggered: #${data.build_id} — poll ${data.status_url}`;
+      setTimeout(loadBuilds, 1000);
+    } catch(e) {
+      resultEl.style.color = '#f87171';
+      resultEl.textContent = `Error: ${e.message}`;
+    }
+  }
+
+  // Auto-refresh every 5s
+  loadBuilds();
+  setInterval(loadBuilds, 5000);
+</script>
+</body>
+</html>
