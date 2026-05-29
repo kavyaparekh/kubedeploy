@@ -1,0 +1,43 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kubedeploy-sa
+  namespace: kubedeploy
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kubedeploy-controller
+rules:
+  # Watch and manage Kaniko build jobs
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Provision Deployments
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Provision Services
+  - apiGroups: [""]
+    resources: ["services", "pods", "pods/log", "nodes"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Read secrets (registry credentials)
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kubedeploy-controller-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kubedeploy-controller
+subjects:
+  - kind: ServiceAccount
+    name: kubedeploy-sa
+    namespace: kubedeploy
